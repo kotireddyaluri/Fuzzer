@@ -301,6 +301,9 @@ public class BurpExtender implements IBurpExtender, ITab
 					public void actionPerformed(ActionEvent e) {
 						// Removes all the payloads
 						payloads.clear();
+						xxe_payloads.clear();
+						ssrf_payloads.clear();
+						cmd_payloads.clear();
 						DefaultTableModel dm = (DefaultTableModel)Header_Tbl.getModel();
 						dm.getDataVector().removeAllElements();
 						dm.fireTableDataChanged();
@@ -364,7 +367,7 @@ public class BurpExtender implements IBurpExtender, ITab
 				
 				command.setLayout(new BoxLayout(command,BoxLayout.X_AXIS));
 				
-				command.add(new JLabel("DNS Host(Example:burpCollaborator.net)"));
+				command.add(new JLabel("DNS Host(Example:ping xx.burpCollaborator.net)"));
 				command.add(textField);
 				command.add(generatbtn);
 				
@@ -777,9 +780,15 @@ class JavaDeserializeScan implements IScannerCheck
 		byte[] completeReq=null;
 		for(int i=0;i<BurpExtender.payloads.size();i++)
 		{
+			try {
+				//completeReq = new BuildUnencodedRequest(BurpExtender.callbacks.getHelpers()).buildUnencodedRequest(insertionPoint, BurpExtender.payloads.get(i).getBytes());
 			completeReq = insertionPoint.buildRequest(BurpExtender.payloads.get(i).getBytes());
 			IHttpRequestResponse checkRequestResponse = BurpExtender.callbacks.makeHttpRequest(
 	                baseRequestResponse.getHttpService(), BurpExtender.callbacks.makeHttpRequest(httpService, completeReq).getRequest());
+			} catch (Exception e) {
+				// TODO Auto-generated catch block
+				e.printStackTrace();
+			}
 		}
 		
 		return null;
